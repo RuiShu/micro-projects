@@ -123,8 +123,9 @@ with tf.name_scope('u'):
     # Compute losses
     with tf.name_scope('loss'):
         rec_x = -log_bern(x, x_logits)
+        rec_y = -np.log(0.1)
         kl_z  = -log_norm(z, *z_prior) + log_norm(z, *z_post)
-        u_loss = tf.transpose(tf.reshape(rec_x + kl_z, (10, -1)))
+        u_loss = tf.transpose(tf.reshape(rec_x + rec_y + kl_z, (10, -1)))
         qy = tf.nn.softmax(y_logits)
         ln_qy = tf.nn.log_softmax(y_logits)
         u_loss = tf.reduce_mean(tf.reduce_sum(u_loss * qy + qy * ln_qy, axis=-1))
