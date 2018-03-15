@@ -1,0 +1,98 @@
+import tensorflow as tf
+import tensorbayes as tb
+from codebase.args import args
+from codebase.datasets import get_info
+from utils import delete_existing, save_value
+import os
+import sys
+import numpy as np
+
+def update_dict(M, feed_dict, src=None, trg=None, bs=100):
+    """Update feed_dict with new mini-batch
+    M         - (TensorDict) the model
+    feed_dict - (dict) tensorflow feed dict
+    src       - (obj) source domain. Contains train/test Data obj
+    trg       - (obj) target domain. Contains train/test Data obj
+    bs        - (int) batch size
+    """
+    if src:
+        src_x, src_y = src.train.next_batch(bs)
+        feed_dict.update({M.src_x: src_x})
+
+    if trg:
+        trg_x, trg_y = trg.train.next_batch(bs)
+        feed_dict.update({M.trg_x: trg_x})
+
+def train(M, src=None, trg=None, saver=None, model_name=None):
+    """Main training function
+    Creates log file, manages datasets, trains model
+    M          - (TensorDict) the model
+    src        - (obj) source domain. Contains train/test Data obj
+    trg        - (obj) target domain. Contains train/test Data obj
+    saver      - (Saver) saves models during training
+    model_name - (str) name of the model being run with relevant parms info
+    """
+    # Training settings
+    bs = 64
+    iterep = 1000
+    iterviz = 5000 if args.run < 999 else 1000
+    itersave = 20000
+    n_epoch = 200
+    epoch = 0
+    feed_dict = {}
+
+    # Create a log directory and FileWriter
+    log_dir = os.path.join(args.logdir, model_name)
+    delete_existing(log_dir)
+    train_writer = tf.summary.FileWriter(log_dir)
+
+    # Create a save directory
+    if saver:
+        model_dir = os.path.join('checkpoints', model_name)
+        delete_existing(model_dir)
+        os.makedirs(model_dir)
+
+    if src: get_info(args.src, src)
+    if trg: get_info(args.trg, trg)
+    print "Batch size:", bs
+    print "Iterep:", iterep
+    print "Total iterations:", n_epoch * iterep
+    print "Log directory:", log_dir
+
+    for i in xrange(n_epoch * iterep):
+        # Run main optimizer
+        update_dict(M, feed_dict, src, trg, bs)
+        summary, _ = M.sess.run(M.ops_main, feed_dict)
+        train_writer.add_summary(summary, i + 1)
+        train_writer.flush()
+
+        end_epoch, epoch = tb.utils.progbar(i, iterep,
+                                            message='{}/{}'.format(epoch, i),
+                                            display=args.run >= 999)
+
+        # Log end-of-epoch values
+        if end_epoch:
+            print_list = M.sess.run(M.ops_print, feed_dict)
+
+            if src:
+                save_value(M.fn_loss, 'test/src_loss',
+                           src.test,  train_writer, i + 1, print_list, full=False)
+
+            if trg:
+                save_value(M.fn_loss, 'test/trg_loss',
+                           trg.test,  train_writer, i + 1, print_list, full=False)
+
+            print_list += ['epoch', epoch]
+            print print_list
+
+        # Visualize images
+        if getattr(M, 'ops_image', None) is not None and (i + 1) % iterviz == 0:
+            summary = M.sess.run(M.ops_image)
+            train_writer.add_summary(summary, i + 1)
+
+        if saver and (i + 1) % itersave == 0:
+            save_model(saver, M, model_dir, i + 1)
+
+    # Saving final model
+    if saver:
+        save_model(saver, M, model_dir, i + 1)
