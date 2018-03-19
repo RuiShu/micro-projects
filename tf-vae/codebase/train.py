@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorbayes as tb
 from codebase.args import args
 from codebase.datasets import get_info
-from utils import delete_existing, save_value
+from utils import delete_existing, save_value, save_model
 import os
 import sys
 import numpy as np
@@ -86,7 +86,7 @@ def train(M, src=None, trg=None, saver=None, model_name=None):
             print print_list
 
         # Visualize images
-        if getattr(M, 'ops_image', None) is not None and (i + 1) % iterviz == 0:
+        if (i + 1) % iterviz == 0 and getattr(M, 'ops_image', None) is not None:
             summary = M.sess.run(M.ops_image)
             train_writer.add_summary(summary, i + 1)
 

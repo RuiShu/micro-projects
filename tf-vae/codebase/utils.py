@@ -25,6 +25,11 @@ def u2t(x):
     """
     return x.astype('float32') / 255 * 2 - 1
 
+def save_model(saver, M, model_dir, global_step):
+    path = saver.save(M.sess, os.path.join(model_dir, 'model'),
+                      global_step=global_step)
+    print "Saving model to {}".format(path)
+
 def save_value(fn_val, tag, data,
                train_writer=None, global_step=None, print_list=None,
                full=True):
